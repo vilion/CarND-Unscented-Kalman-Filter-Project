@@ -119,7 +119,7 @@ void UKF::Prediction(double delta_t) {
   *      Create Augmented Sigma Point                            *
   ****************************************************************/
 
-  // Lesson 7, section 18: Agmenteation Assignment 2
+  // Lesson 7, section 18: Generate Augmented Sigma point Assignment 2
 
   // create augmented mean state
   int n_aug = 7:
@@ -133,8 +133,8 @@ void UKF::Prediction(double delta_t) {
   MatrixXd P_aug(7,7);
   P_aug.fill(0);
   P_aug.topLeftCorner(5,5) = P_;
-  P_aug(5,5) = std_a*std_a;
-  P_aug(6,6) = std_yawdd*std_yawdd;
+  P_aug(5,5) = std_a_*std_a_;
+  P_aug(6,6) = std_yawdd_*std_yawdd_;
 
   // create square root matrix
   MatrixXd L = P_aug.llt().matrixL();
@@ -144,8 +144,89 @@ void UKF::Prediction(double delta_t) {
   Xsig_aug.col(0) = x_aug;
   int lambda = 3 - n_aug;
   for(int ii = 0; ii < n_aug; ii++){
-    Xsig_aug(ii+1)       = x_aug + sqrt(lambda+n_aug) * L;
-    Xsig_aug(ii+1+n_aug) = x_aug - sqrt(lambda+n_aug) * L;
+    Xsig_aug(ii+1)       = x_aug + sqrt(lambda+n_aug) * L.col(i);
+    Xsig_aug(ii+1+n_aug) = x_aug - sqrt(lambda+n_aug) * L.col(i);
+  }
+
+
+  /***************************************************************
+  *      Predict Sigma Point                            *
+  ****************************************************************/
+
+  // Lesson 7, section 21: Predict Augmented Sigmapoint Assignment 2
+  // predict sigma points
+  for(int jj =0; jj < 2*n_aug+1; jj++){
+    // extract values for better readability
+    double p_x = Xsig_aug(0,jj);
+    double p_x = Xsig_aug(1,jj);
+    double v = Xsig_aug(2,jj);
+    double yaw = Xsig_aug(3,jj);
+    double yawd = Xsig_aug(4,jj);
+    double nu_a = Xsig_aug(5,jj);
+    double nu_yawdd = Xsig_aug(6,jj);
+
+    // predicted state values
+    double px_p, py_p;
+
+    // avoid division by zero
+    if(fabs(yawd)>0.001){
+      px_p = p_x + v/yawd * (sin(yaw + yawd*delta_t) - sin(yaw));
+      py_p = p_y + v/yawd * (cos(yaw) - cos(yaw+yawd*delta_t));
+    } else {
+      px_p = p_x + v*delta_t*cos(yaw);
+      py_p = p_y + v*delta_t*sin(yaw);
+    }
+
+    double v_p = v;
+    double yaw_p = yaw + yawd*delta_t;
+    double yawd_p = yawd;
+
+    // add noise
+    px_p = px_p + 0.5*nu_a*delta_t*delta_t * cos(yaw);
+    py_p = py_p + 0.5*nu_a*delta_t*delta_t * sin(yaw);
+    v_p = v_p + nu_a*delta_t;
+
+    yaw_p = yaw_p + 0.5*nu_yawdd*delta_t*delta_t;
+    yawd_p = yawd_p + nu_yawdd*delta_t;
+
+    // write predicted sigma point into right column
+    Xsig_pred(0,jj) = px_p;
+    Xsig_pred(1,jj) = py_p;
+    Xsig_pred(2,jj) = v_p;
+    Xsig_pred(3,jj) = yaw_p;
+    Xsig_pred(4,jj) = yawd_p;
+  }
+
+  /***************************************************************
+  *      Predict mean and covariance
+  ****************************************************************/
+
+  // Lesson 7, section 24: Predict Mean and Covariance Assignment 2
+  
+  // set weights
+  double weight_0 = lambda/(lambda+n_aug);
+  weights(0) = weight_0;
+  for(int kk=1; kk<2*n_aug+1; kk++){ // 2n+1 weights
+    double weight = 0.5/(n_aug+lambda);
+    weights(kk) = weight;
+  }
+
+  // predicted state mean
+  x_.fill(0.0);
+  for(int ll = 0; ll < 2 * n_aug + 1; ll++){
+    x_ = x_ + weights(ll)* Xsig_pred.col(ll);
+  }
+
+  // predicted state covariance matrix
+  P_.fill(0.0);
+  for(int mm = 0; mm < 2 * n_aug + 1; mm++){
+    // state difference
+    VectorXd x_diff = Xsig_pred.col(i) - x_;
+    // angle normalization
+    while(x_diff(3)>M_PI) x_diff(3)-=2.*M_PI;
+    while(x_diff(3)<M_PI) x_diff(3)+=2.*M_PI;
+
+    P_ = P_ + weights(mm) * x_diff * x_diff.transpose();
   }
 
 }
