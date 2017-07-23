@@ -118,6 +118,12 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     // Initialize anything else here (e.g P_, anything else needed)
     previouse_t_ = meas_package.timestamp_;
     is_initialized_ = true;
+    P_ << 0.1,0,0,0,0,
+        0,0.1,0,0,0,
+        0,0,0.1,0,0,
+        0,0,0,0.1,0,
+        0,0,0,0,0.1;
+
     return;
   }
 
@@ -264,8 +270,6 @@ void UKF::Prediction(double delta_t) {
  * @param {MeasurementPackage} meas_package
  */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
-  cout << "update lidar start" << endl;
-
   /**
   TODO:
 
