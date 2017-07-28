@@ -333,6 +333,10 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   // Lesson 7, section 27: Predict Radar Masurement Assignment 2
   
   //create matrix for sigma points in measurement space
+  //
+
+  //cout << "Radar update start" << endl;
+
   int n_z = 3;
   MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
 
@@ -410,13 +414,29 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     // angle normalization
     while (z_diff(1) > M_PI) z_diff(1)-=2.*M_PI;
     while (z_diff(1) < -M_PI) z_diff(1)+=2.*M_PI;
+    
+    // state difference
+    VectorXd x_diff = Xsig_pred_.col(ll) - x_;
+    //angle normalization
+    while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
+    while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
 
-    // update state mean and covariance matrix
-    //Kalman gain K;
-    MatrixXd K = Tc * S.inverse();
-    x_ = x_ + K * z_diff;
-    P_ = P_ - K*S*K.transpose();
+    Tc = Tc + weights_(ll) * x_diff * z_diff.transpose();
   }
+
+  // update state mean and covariance matrix
+  //Kalman gain K;
+  MatrixXd K = Tc * S.inverse();
+  //residual
+  VectorXd z_diff = meas_package.raw_measurements_ - z_pred;
+
+  //angle normalization
+  while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
+  while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
+
+  //update state mean and covariance matrix
+  x_ = x_ + K * z_diff;
+  P_ = P_ - K*S*K.transpose();
 
   cout << "Radar updated" << endl;
 
