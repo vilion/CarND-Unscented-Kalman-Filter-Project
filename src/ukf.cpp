@@ -28,6 +28,11 @@ UKF::UKF() {
 
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
+  P_ << 1,0,0,0,0,
+      0,1,0,0,0,
+      0,0,1,0,0,
+      0,0,0,1,0,
+      0,0,0,0,1;
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   std_a_ = 3;
@@ -118,11 +123,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     // Initialize anything else here (e.g P_, anything else needed)
     previouse_t_ = meas_package.timestamp_;
     is_initialized_ = true;
-    P_ << 0.1,0,0,0,0,
-        0,0.1,0,0,0,
-        0,0,0.1,0,0,
-        0,0,0,0.1,0,
-        0,0,0,0,0.1;
+    P_ << 1,0,0,0,0,
+        0,1,0,0,0,
+        0,0,1,0,0,
+        0,0,0,1,0,
+        0,0,0,0,1;
 
     return;
   }
@@ -263,6 +268,10 @@ void UKF::Prediction(double delta_t) {
     P_ = P_ + weights_(mm) * x_diff * x_diff.transpose();
   }
 
+  cout << "Predicted" << endl;
+
+  cout << "x_ = " << x_ << endl;
+  cout << "P_ = " << P_ << endl;
 }
 
 /**
@@ -296,6 +305,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   P_ = (I - K * H_laser_) * P_;
 
+  cout << "Lidar updated" << endl;
+
+  cout << "x_ = " << x_ << endl;
+  cout << "P_ = " << P_ << endl;
 }
 
 /**
@@ -335,9 +348,22 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     double v2 = sin(yaw)*v;
     
     // measurement model
-    Zsig(0,ii) = sqrt(p_x*p_x + p_y*p_y);                     // r
-    Zsig(1,ii) = atan2(p_y,p_x);                              // phi
-    Zsig(2,ii) = (p_x*v1 + p_y*v2) / sqrt(p_x*p_x + p_y*p_y); // r_dot
+    double rho = sqrt(p_x*p_x + p_y*p_y);  // r
+    if(fabs(rho)<0.001){
+      if(rho>0) rho = 0.001;
+      if(rho<0) rho = -0.001;
+    }
+    Zsig(0,ii) = rho;
+    if(fabs(p_x)<0.001){
+      if(p_x>0) p_x = 0.001;
+      if(p_x<0) p_x = -0.001;
+    }
+    if(fabs(p_y)<0.001){
+      if(p_y>0) p_y = 0.001;
+      if(p_y<0) p_y = -0.001;
+    }
+    Zsig(1,ii) = atan2(p_y,p_x);          // phi
+    Zsig(2,ii) = (p_x*v1 + p_y*v2) / rho; // r_dot
   }
 
   // mean predicted measurement
@@ -392,4 +418,8 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     P_ = P_ - K*S*K.transpose();
   }
 
+  cout << "Radar updated" << endl;
+
+  cout << "x_ = " << x_ << endl;
+  cout << "P_ = " << P_ << endl;
 }
