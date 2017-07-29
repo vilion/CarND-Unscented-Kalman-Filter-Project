@@ -71,7 +71,7 @@ public:
 
   MatrixXd H_laser_;
 
-  long previouse_t_;
+  long long previouse_t_;
   /**
    * Constructor
    */

@@ -123,11 +123,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     // Initialize anything else here (e.g P_, anything else needed)
     previouse_t_ = meas_package.timestamp_;
     is_initialized_ = true;
-    P_ << 1,0,0,0,0,
-        0,1,0,0,0,
-        0,0,1,0,0,
-        0,0,0,1,0,
-        0,0,0,0,1;
+    P_ << 0.1,0,0,0,0,
+        0,0.1,0,0,0,
+        0,0,0.1,0,0,
+        0,0,0,0.1,0,
+        0,0,0,0,0.1;
 
     return;
   }
@@ -287,23 +287,74 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the lidar NIS.
   */
-  VectorXd y = meas_package.raw_measurements_ - H_laser_ * x_;
+  //set measurement dimension
+  int n_z_ = 2;
 
-  MatrixXd Ht = H_laser_.transpose();
-  MatrixXd S = H_laser_ * P_ * Ht + R_laser_;
-  MatrixXd Si = S.inverse();
-  MatrixXd K = P_ * Ht * Si;
+  //create matrix for sigma points in measurement space
+  MatrixXd Zsig = MatrixXd(n_z_, 2 * n_aug_ + 1);
 
-  // new state
-  x_ = x_ + (K * y);
-  MatrixXd I = MatrixXd(5,5);
-  I << 1, 0, 0, 0, 0,
-       0, 1, 0, 0, 0,
-       0, 0, 1, 0, 0,
-       0, 0, 0, 1, 0,
-       0, 0, 0, 0, 1;
+  //mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z_);
+  
+  //measurement covariance matrix S
+  MatrixXd S_ = MatrixXd(n_z_,n_z_);
 
-  P_ = (I - K * H_laser_) * P_;
+  //prediction noise matrix
+  MatrixXd R_ = MatrixXd(n_z_, n_z_);
+
+  //cross correlation matrix
+  MatrixXd Tc = MatrixXd(n_x_, n_z_);
+
+  //ground truth measurement
+  VectorXd z = meas_package.raw_measurements_;
+
+  //transform sigma points into measurement space
+  for (int i=0; i<2*n_aug_+1; i++)
+  {
+    double p_x = Xsig_pred_(0,i);
+    double p_y = Xsig_pred_(1,i);
+    Zsig.col(i) << p_x, p_y;
+  }
+
+  //calculate mean predicted measurement
+  z_pred.fill(0.0);
+  for (int k=0; k<2*n_aug_+1; k++)
+  {
+    z_pred += weights_(k) * Zsig.col(k);
+  }
+
+  //calculate measurement covariance matrix S
+  S_.fill(0.0);
+  for (int l=0; l<2*n_aug_+1; l++)
+  {
+    VectorXd z_diff = Zsig.col(l) - z_pred;
+    S_ += weights_(l) * z_diff * z_diff.transpose();
+  }
+
+  //measurement noise covariance
+  R_ <<  std_laspx_*std_laspx_, 0,
+         0, std_laspy_*std_laspy_;
+
+  //add measurement noise covariance matrix
+  S_ += R_;
+
+  //calculate cross correlation matrix
+  Tc.fill(0);
+  for (int j=0; j<2 * n_aug_ + 1; j++)
+  {
+    VectorXd x_diff = Xsig_pred_.col(j) - x_;
+    
+    VectorXd z_diff = Zsig.col(j) - z_pred;
+    Tc += weights_(j) * x_diff * z_diff.transpose();
+  }
+
+  //calculate Kalman gain K
+  MatrixXd K = Tc * S_.inverse();
+  
+  //update state mean and covariance matrix
+  VectorXd z_diff_ = z - z_pred;
+  x_ += K*(z_diff_);
+  P_ -= K * S_ * K.transpose();
 
   cout << "Lidar updated" << endl;
 
